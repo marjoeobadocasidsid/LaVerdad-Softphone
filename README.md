@@ -30,6 +30,36 @@ Real inbound/outbound calling and employee accounts require backend services; do
 5. **Operational records:** call detail records, dispositions, notes, queue/skill assignment, supervisor permissions, and reporting.
 6. **Privacy and compliance:** consent notices, retention controls, access logging, recording policy, and applicable telecommunications/privacy compliance before handling real customer data.
 
+## Backend foundation (implementation in progress)
+
+The repository now includes a Cloudflare Worker API and a D1 migration for employee access requests. The request form submits only the employee name, requested username, and work email; it does not ask for a password. The API validates input, limits submissions per IP window, saves pending requests in D1, and provides protected endpoints for an administrator to list and review requests.
+
+### API routes
+
+- `GET /api/health` — reports whether the D1 binding is configured.
+- `POST /api/access-requests` — validates and stores an access request as `pending`.
+- `GET /api/admin/access-requests?status=pending` — lists requests; supports `pending`, `approved`, `rejected`, or `all`.
+- `POST /api/admin/access-requests/:id` — JSON body `{"action":"approve"|"reject","reviewer":"Admin name","note":"optional"}`; records the review and an audit event.
+
+Admin routes require an `x-admin-key` header. Set `ADMIN_API_KEY` as a Cloudflare Worker secret and use a randomly generated secret of at least 32 characters. Never commit that key to GitHub or embed it in frontend code. These endpoints are an initial backend control surface, not a substitute for full employee authentication or a secure Admin UI.
+
+### Cloudflare setup required before deployment
+
+1. Create a D1 database in the Cloudflare account that owns the Worker, for example `npx wrangler d1 create laverdad-softphone-db`.
+2. Copy the generated database ID into `wrangler.toml`, replacing `REPLACE_WITH_D1_DATABASE_ID`.
+3. Apply the migration to the intended database: `npx wrangler d1 migrations apply laverdad-softphone-db --remote`.
+4. Add the secret: `npx wrangler secret put ADMIN_API_KEY` and enter a generated secret (do not paste it into source files).
+5. Deploy with `npx wrangler deploy` only after checking the account, Worker name, D1 database ID, and deployment target.
+
+Use a separate staging database for testing first. Cloudflare migrations and resources are not created just by committing files to GitHub. See the official [D1 getting started guide](https://developers.cloudflare.com/d1/get-started/) and [migration guide](https://developers.cloudflare.com/d1/reference/migrations/).
+
+### Current boundaries
+
+- An approved request is only marked approved; it does not create an employee account or grant login access.
+- The existing `demo` login remains a frontend-only preview and is not secure authentication.
+- The admin review endpoints are protected by a Worker secret, but a production Admin interface should use real server-side identity, roles, sessions, and audit controls.
+- The live Cloudflare deployment and database are not confirmed updated by these GitHub commits. Configure and deploy through the correct Cloudflare account before testing the live API.
+
 ## Current files
 
 - `index.html` — app structure
