@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b66d6">
+  <meta name="description" content="LaVerdad Softphone — a modern workspace for contact-center teams.">
+  <title>LaVerdad Softphone | Contact Center Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <main id="authScreen" class="auth-shell">
+    <section class="auth-art">
+      <div class="brand brand-light"><span class="brand-mark"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 21.5c0-7 5.2-12.5 12-12.5s12 5.5 12 12.5v2.2h-5.1v-2.2c0-4.1-2.9-7.2-6.9-7.2s-6.9 3.1-6.9 7.2v2.2H8z"/><path d="M8 22h7v11H8zM25 22h7v11h-7z"/><path d="M15 32h10v3H15z"/></svg></span><span>LaVerdad<span class="brand-lightweight"> Softphone</span></span></div>
+      <div class="art-copy">
+        <span class="eyebrow"><span class="live-dot"></span> CONTACT CENTER WORKSPACE</span>
+        <h1>Every conversation<br>starts with a <em>connection.</em></h1>
+        <p>A smarter workspace for teams that listen, support, and make every customer interaction count.</p>
+        <div class="art-stats"><div><strong>One workspace</strong><span>Calls, teams & insights</span></div><div><strong>Team-first</strong><span>Built for collaboration</span></div></div>
+      </div>
+      <div class="wave-art" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="art-footer"><span>Secure workspace concept</span><span>Made for people who connect</span></div>
+    </section>
+    <section class="auth-panel">
+      <div class="mobile-brand brand"><span class="brand-mark"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 21.5c0-7 5.2-12.5 12-12.5s12 5.5 12 12.5v2.2h-5.1v-2.2c0-4.1-2.9-7.2-6.9-7.2s-6.9 3.1-6.9 7.2v2.2H8z"/><path d="M8 22h7v11H8zM25 22h7v11h-7z"/><path d="M15 32h10v3H15z"/></svg></span>LaVerdad <span class="brand-lightweight">Softphone</span></div>
+      <div class="auth-card">
+        <div class="auth-heading"><span class="auth-icon">↗</span><span class="eyebrow">WELCOME BACK</span><h2 id="authTitle">Sign in to your workspace</h2><p id="authSubtitle">Use your assigned employee credentials to continue.</p></div>
+        <form id="loginForm" class="auth-form">
+          <label for="username">Username</label><div class="field-wrap"><span>♙</span><input id="username" name="username" autocomplete="username" placeholder="Enter your username" required></div>
+          <label for="password">Password</label><div class="field-wrap"><span>♧</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="reveal-btn" id="togglePassword" aria-label="Show password">Show</button></div>
+          <div class="form-row"><label class="check-label"><input type="checkbox" id="rememberMe"> Remember me</label><a href="#" id="forgotLink">Forgot password?</a></div>
+          <button class="primary-btn full-btn" type="submit">Sign in <span>→</span></button>
+          <div class="demo-note"><span class="note-icon">i</span><span><strong>Interactive preview</strong><br>Use <b>demo</b> as username and any password to explore the sample workspace. This prototype does not authenticate real employees.</span></div>
+        </form>
+        <form id="signupForm" class="auth-form hidden">
+          <label for="newName">Employee full name</label><div class="field-wrap"><span>♙</span><input id="newName" required placeholder="Enter full name"></div>
+          <label for="newUsername">Preferred username</label><div class="field-wrap"><span>@</span><input id="newUsername" required minlength="3" placeholder="Create a username"></div>
+          <label for="newEmail">Work email</label><div class="field-wrap"><span>✉</span><input id="newEmail" type="email" required placeholder="name@company.com"></div>
+          <label for="newPassword">Temporary password</label><div class="field-wrap"><span>♧</span><input id="newPassword" type="password" required minlength="8" placeholder="At least 8 characters"></div>
+          <button class="primary-btn full-btn" type="submit">Request employee access <span>→</span></button>
+          <div class="demo-note"><span class="note-icon">i</span><span>Account creation is a preview only. In production, an authorized admin should provision accounts through a secure backend.</span></div>
+        </form>
+        <p class="auth-switch" id="authSwitch">New to the team? <button type="button" id="showSignup">Request an account</button></p>
+      </div>
+      <p class="auth-legal">By continuing, you agree to your organization's acceptable-use and privacy policies.</p>
+    </section>
+  </main>
+
+  <main id="appScreen" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-brand"><button class="mobile-menu" id="mobileMenu" aria-label="Toggle navigation">☰</button><div class="brand"><span class="brand-mark"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 21.5c0-7 5.2-12.5 12-12.5s12 5.5 12 12.5v2.2h-5.1v-2.2c0-4.1-2.9-7.2-6.9-7.2s-6.9 3.1-6.9 7.2v2.2H8z"/><path d="M8 22h7v11H8zM25 22h7v11h-7z"/><path d="M15 32h10v3H15z"/></svg></span><span>LaVerdad <span class="brand-lightweight">Softphone</span></span></div><span class="env-pill">WORKSPACE</span></div>
+      <div class="topbar-actions"><div class="system-status"><span class="live-dot"></span><span>Systems ready</span></div><button class="icon-btn notification-btn" id="notificationsBtn" aria-label="Notifications">♧<i></i></button><div class="profile-area"><button class="profile-button" id="profileButton"><span class="avatar" id="avatarInitials">DM</span><span class="profile-text"><strong id="profileName">Demo Member</strong><small id="profileRole">Contact Center Agent</small></span><span class="chevron">⌄</span></button><div class="profile-menu hidden" id="profileMenu"><button data-action="account">♙ &nbsp; Managing account</button><button data-action="privacy">◇ &nbsp; Privacy & settings</button><button data-action="help">? &nbsp; Help & support</button><hr><button data-action="logout" class="logout-item">↪ &nbsp; Log out</button></div></div></div>
+    </header>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="side-label">WORKSPACE</div>
+      <button class="nav-item active" data-page="dashboard" title="Dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span><span class="nav-tip">Dashboard</span></button>
+      <button class="nav-item" id="openPhoneNav" title="Softphone"><span class="nav-icon">♧</span><span class="nav-text">Softphone</span><span class="nav-tip">Softphone</span><span class="nav-badge"></span></button>
+      <button class="nav-item" data-page="team" title="Team & presence"><span class="nav-icon">♙</span><span class="nav-text">Team & presence</span><span class="nav-tip">Team & presence</span></button>
+      <button class="nav-item" data-page="activity" title="Call activity"><span class="nav-icon">◷</span><span class="nav-text">Call activity</span><span class="nav-tip">Call activity</span></button>
+      <button class="nav-item" data-page="contacts" title="Contacts"><span class="nav-icon">▤</span><span class="nav-text">Contacts</span><span class="nav-tip">Contacts</span></button>
+      <div class="side-divider"></div><div class="side-label">MY WORK</div>
+      <button class="nav-item" data-page="skills" title="Skills & queues"><span class="nav-icon">◎</span><span class="nav-text">Skills & queues</span><span class="nav-tip">Skills & queues</span></button>
+      <button class="nav-item" data-page="reports" title="Reports"><span class="nav-icon">▥</span><span class="nav-text">Reports & insights</span><span class="nav-tip">Reports & insights</span></button>
+      <div class="sidebar-bottom"><div class="help-card"><span class="help-icon">✦</span><div class="help-copy"><strong>Need a hand?</strong><small>Visit the help center</small></div><button id="helpBtn" aria-label="Help center">↗</button></div><div class="sidebar-version">LAVERDAD SOFTPHONE <span>PREVIEW 0.1</span></div></div>
+    </aside>
+
+    <section class="main-content" id="mainContent">
+      <div class="page-view" id="dashboardPage">
+        <div class="page-heading"><div><div class="breadcrumb">Workspace <span>/</span> Overview</div><h1>Good morning, <span id="greetingName">Demo</span> <span class="wave">✦</span></h1><p>Here’s what’s happening with your team today.</p></div><div class="heading-actions"><span class="date-chip">◷ <span id="todayDate"></span></span><button class="primary-btn compact" id="launchPhone">♧ &nbsp; Open softphone</button></div></div>
+        <div class="notice-banner"><div class="notice-symbol">✦</div><div><strong>Welcome to your contact center workspace</strong><p>This is an interactive UI preview. Connect a telephony provider and secure backend to enable real calls and employee accounts.</p></div><button id="dismissNotice" aria-label="Dismiss notice">×</button></div>
+        <div class="section-heading"><div><h2>Team overview</h2><p>Your team's live presence at a glance</p></div><button class="text-btn" data-goto="team">View team <span>→</span></button></div>
+        <div class="metric-grid">
+          <article class="metric-card"><div class="metric-top"><span class="metric-icon blue">♧</span><span class="trend neutral">Live preview</span></div><span class="metric-label">Agents available</span><div class="metric-value" id="availableMetric">12 <small>/ 18</small></div><div class="metric-foot"><span class="mini-bar"><i style="width:67%"></i></span><span>Team presence</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span class="metric-icon green">↗</span><span class="trend positive">Today</span></div><span class="metric-label">Calls handled</span><div class="metric-value">248</div><div class="metric-foot"><span class="foot-dot green-dot"></span><span>Inbound + outbound</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span class="metric-icon violet">◷</span><span class="trend positive">Target 90%</span></div><span class="metric-label">Service level</span><div class="metric-value">92.4<span class="metric-unit">%</span></div><div class="metric-foot"><span class="mini-bar violet-bar"><i style="width:92%"></i></span><span>Sample metric</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span class="metric-icon amber">⌁</span><span class="trend neutral">Current queue</span></div><span class="metric-label">Waiting contacts</span><div class="metric-value">07</div><div class="metric-foot"><span class="foot-dot amber-dot"></span><span>3 inbound · 4 chat</span></div></article>
+        </div>
+        <div class="dashboard-grid">
+          <section class="panel team-panel"><div class="panel-heading"><div><h2>Team presence</h2><p>See who’s ready to help</p></div><button class="more-btn" data-goto="team">•••</button></div><div class="presence-summary"><span><i class="status-dot available"></i> Available <b id="availableCount">12</b></span><span><i class="status-dot oncall"></i> On phone <b>03</b></span><span><i class="status-dot wrap"></i> Wrap <b>01</b></span></div><div class="table-wrap"><table><thead><tr><th>AGENT</th><th>TEAM</th><th>STATUS</th><th>SKILLS</th></tr></thead><tbody id="teamPreview"></tbody></table></div><button class="panel-footer-btn" data-goto="team">View all team members <span>→</span></button></section>
+          <section class="panel activity-panel"><div class="panel-heading"><div><h2>Recent activity</h2><p>Your latest call interactions</p></div><button class="text-btn" data-goto="activity">View all</button></div><div class="activity-list" id="recentActivity"></div><div class="activity-insight"><div class="insight-icon">✦</div><div><strong>Stay in the loop</strong><p>Call activity, dispositions, and notes will appear here once a telephony service is connected.</p></div></div></section>
+        </div>
+        <section class="panel skills-panel"><div class="panel-heading"><div><h2>Your assigned skills</h2><p>Queues and work types assigned to your profile</p></div><button class="text-btn" data-goto="skills">Manage skills <span>→</span></button></div><div class="skill-grid"><article class="skill-card"><span class="skill-symbol inbound-symbol">↙</span><div><strong>Inbound calls</strong><p>Receive and assist incoming callers</p><span class="skill-status enabled">Assigned</span></div><span class="skill-arrow">↗</span></article><article class="skill-card"><span class="skill-symbol outbound-symbol">↗</span><div><strong>Outbound calls</strong><p>Make customer follow-up calls</p><span class="skill-status enabled">Assigned</span></div><span class="skill-arrow">↗</span></article><article class="skill-card"><span class="skill-symbol backoffice-symbol">▤</span><div><strong>Back office</strong><p>Complete after-call tasks and cases</p><span class="skill-status">Not assigned</span></div><span class="skill-arrow">↗</span></article><article class="skill-card"><span class="skill-symbol chat-symbol">☏</span><div><strong>Chat support</strong><p>Support customers through messaging</p><span class="skill-status">Not assigned</span></div><span class="skill-arrow">↗</span></article></div></section>
+        <footer class="app-footer"><span>© 2026 LaVerdad Softphone · Contact Center Workspace</span><span><i class="status-dot available"></i> Preview environment</span></footer>
+      </div>
+
+      <div class="page-view hidden" id="teamPage"><div class="page-heading"><div><div class="breadcrumb">Workspace <span>/</span> Team & presence</div><h1>Team & presence</h1><p>Monitor agent availability and assigned work skills.</p></div><button class="secondary-btn" id="exportTeam">↓ Export team</button></div><div class="filter-row"><div class="search-field"><span>⌕</span><input id="teamSearch" placeholder="Search agents or teams..."></div><select id="statusFilter"><option value="all">All statuses</option><option>Available</option><option>On Phone</option><option>Unavailable</option><option>On Wrap</option><option>Logged Out</option></select><span class="result-count" id="teamResultCount">18 agents</span></div><section class="panel full-panel"><div class="table-wrap"><table class="full-table"><thead><tr><th>AGENT</th><th>TEAM / GROUP</th><th>PRESENCE</th><th>ASSIGNED SKILLS</th><th>EXTENSION</th></tr></thead><tbody id="fullTeamTable"></tbody></table></div></section></div>
+
+      <div class="page-view hidden" id="activityPage"><div class="page-heading"><div><div class="breadcrumb">Workspace <span>/</span> Call activity</div><h1>Call activity</h1><p>Review recent interactions and their outcomes.</p></div><button class="secondary-btn" id="exportActivity">↓ Export activity</button></div><div class="filter-row"><div class="search-field"><span>⌕</span><input id="activitySearch" placeholder="Search caller or disposition..."></div><select id="callTypeFilter"><option value="all">All call types</option><option>Inbound</option><option>Outbound</option></select></div><section class="panel full-panel"><div class="table-wrap"><table class="full-table"><thead><tr><th>CONTACT</th><th>TYPE</th><th>DATE / TIME</th><th>DURATION</th><th>DISPOSITION</th></tr></thead><tbody id="activityTable"></tbody></table></div></section></div>
+
+      <div class="page-view hidden" id="contactsPage"><div class="page-heading"><div><div class="breadcrumb">Workspace <span>/</span> Contacts</div><h1>Contact directory</h1><p>Find a customer or start a call from a saved contact.</p></div><button class="primary-btn compact" id="addContact">＋ Add contact</button></div><div class="filter-row"><div class="search-field"><span>⌕</span><input id="contactSearch" placeholder="Search name or phone..."></div><span class="result-count" id="contactCount">6 contacts</span></div><div class="contact-grid" id="contactGrid"></div></div>
+
+      <div class="page-view hidden" id="skillsPage"><div class="page-heading"><div><div class="breadcrumb">My work <span>/</span> Skills & queues</div><h1>Skills & queues</h1><p>Your assigned contact types and work queues.</p></div></div><div class="skill-detail-grid" id="skillDetailGrid"></div><section class="panel queue-panel"><div class="panel-heading"><div><h2>Queue overview</h2><p>Illustrative queue data for the preview environment</p></div></div><div class="queue-row"><div><strong>General inbound</strong><small>Inbound voice · Priority normal</small></div><div class="queue-load"><span>7 waiting</span><div><i style="width:42%"></i></div></div><span class="queue-pill">Active</span></div><div class="queue-row"><div><strong>Outbound follow-up</strong><small>Outbound voice · Preview queue</small></div><div class="queue-load"><span>4 pending</span><div><i style="width:24%"></i></div></div><span class="queue-pill">Active</span></div><div class="queue-row"><div><strong>Customer chat</strong><small>Messaging · Not assigned</small></div><div class="queue-load"><span>12 waiting</span><div><i style="width:72%"></i></div></div><span class="queue-pill muted-pill">Unassigned</span></div></section></div>
+
+      <div class="page-view hidden" id="reportsPage"><div class="page-heading"><div><div class="breadcrumb">My work <span>/</span> Reports & insights</div><h1>Reports & insights</h1><p>Understand team performance with a quick operational snapshot.</p></div><span class="date-chip">◷ Sample data</span></div><div class="report-grid"><section class="panel report-panel"><div class="panel-heading"><div><h2>Contact volume</h2><p>Sample interactions by hour</p></div></div><div class="chart" id="volumeChart"></div><div class="chart-legend"><span><i class="legend-blue"></i> Inbound</span><span><i class="legend-light"></i> Outbound</span></div></section><section class="panel report-panel"><div class="panel-heading"><div><h2>Team service health</h2><p>Illustrative operational indicators</p></div></div><div class="health-item"><span>Service level</span><strong>92.4%</strong><div class="health-track"><i style="width:92%"></i></div></div><div class="health-item"><span>Availability</span><strong>66.7%</strong><div class="health-track"><i style="width:67%"></i></div></div><div class="health-item"><span>Answered contacts</span><strong>96.1%</strong><div class="health-track"><i style="width:96%"></i></div></div><p class="report-disclaimer">All figures are sample data and are not connected to a live contact center.</p></section></div></div>
+    </section>
+
+    <div class="phone-overlay hidden" id="phoneOverlay">
+      <div class="phone-window" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
+        <div class="phone-titlebar"><div class="phone-title"><span class="phone-title-icon">♧</span><div><strong id="phoneTitle">LaVerdad Softphone</strong><small><i class="status-dot available"></i> Preview line · Not connected to a carrier</small></div></div><div class="phone-title-actions"><button class="icon-btn" id="minimizePhone" aria-label="Minimize softphone">−</button><button class="icon-btn close-phone" id="closePhone" aria-label="Close softphone">×</button></div></div>
+        <div class="phone-body"><div class="phone-tabs"><button class="phone-tab active" data-phone-tab="dialer">Dial pad</button><button class="phone-tab" data-phone-tab="history">Recent</button><button class="phone-tab" data-phone-tab="contacts">Contacts</button></div>
+          <div id="dialerTab" class="phone-tab-content"><div class="call-mode"><button class="mode-btn active" data-mode="Outbound">↗ Outbound</button><button class="mode-btn" data-mode="Inbound">↙ Inbound preview</button></div><div class="dialer-contact"><div class="caller-avatar" id="callerAvatar">☎</div><div class="caller-number"><input id="dialNumber" aria-label="Phone number" placeholder="Enter phone number" inputmode="tel"><span id="dialHint">Enter a number to start an outbound call</span></div><button class="contact-pick" id="pickContact" aria-label="Choose contact">▤</button></div><div class="dial-pad" id="dialPad"><button data-digit="1"><strong>1</strong><small></small></button><button data-digit="2"><strong>2</strong><small>ABC</small></button><button data-digit="3"><strong>3</strong><small>DEF</small></button><button data-digit="4"><strong>4</strong><small>GHI</small></button><button data-digit="5"><strong>5</strong><small>JKL</small></button><button data-digit="6"><strong>6</strong><small>MNO</small></button><button data-digit="7"><strong>7</strong><small>PQRS</small></button><button data-digit="8"><strong>8</strong><small>TUV</small></button><button data-digit="9"><strong>9</strong><small>WXYZ</small></button><button data-digit="*"><strong>*</strong><small></small></button><button data-digit="0"><strong>0</strong><small>+</small></button><button data-digit="#"><strong>#</strong><small></small></button></div><div class="call-state hidden" id="callState"><span class="call-pulse">♧</span><strong id="callStateTitle">Call preview</strong><span id="callTimer">00:00</span><small id="callStateSubtitle">Simulation only · no audio connection</small></div><div class="call-controls"><button class="call-control secondary" id="muteCall" title="Mute microphone">♬<small>Mute</small></button><button class="call-control end-call" id="callAction" title="Start call"><span id="callActionIcon">♧</span><small id="callActionLabel">Call</small></button><button class="call-control secondary" id="keypadToggle" title="Show keypad">▦<small>Keypad</small></button></div><div class="phone-disclaimer"><span>ⓘ</span> Preview mode: calls are simulated. Real calling needs a configured SIP/WebRTC provider and server-side credentials.</div></div>
+          <div id="historyTab" class="phone-tab-content hidden"><div class="phone-list" id="phoneHistoryList"></div></div><div id="contactsTab" class="phone-tab-content hidden"><div class="phone-list" id="phoneContactsList"></div></div>
+        </div>
+        <div class="phone-statusbar"><span><i class="status-dot available"></i> Agent status: <b id="agentStatusLabel">Available</b></span><button id="phoneStatusBtn">Change status⌄</button><div id="phoneStatusMenu" class="phone-status-menu hidden"><button data-status="Available">● Available</button><button data-status="Unavailable">● Unavailable</button><button data-status="On Wrap">● On Wrap</button></div></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop hidden" id="genericModal"><section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-heading"><div><h2 id="modalTitle">Details</h2><p id="modalSubtitle"></p></div><button class="icon-btn" id="closeModal" aria-label="Close dialog">×</button></div><div id="modalContent"></div></section></div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
