@@ -11,5 +11,5 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "laverdad-softphone-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "79a22d14-e12f-4027-a993-66c33aebc7eb"
 migrations_dir = "migrations"
