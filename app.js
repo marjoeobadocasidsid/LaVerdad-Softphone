@@ -42,7 +42,37 @@ function setAuthMode(signup){$("loginForm").classList.toggle("hidden",signup);$(
 function login(name){currentUser=name||"Demo Member";currentRole="Contact Center Agent";$("authScreen").classList.add("hidden");$("appScreen").classList.remove("hidden");$("profileName").textContent=currentUser;$("profileRole").textContent=currentRole;$("avatarInitials").textContent=initials(currentUser);$("greetingName").textContent=currentUser.split(" ")[0];$("todayDate").textContent=new Intl.DateTimeFormat("en",{weekday:"short",month:"short",day:"numeric"}).format(new Date());renderAll();toast("Welcome to your workspace, "+currentUser.split(" ")[0]+"!")}
 function logout(){endCall(true);$("appScreen").classList.add("hidden");$("authScreen").classList.remove("hidden");$("profileMenu").classList.add("hidden");$("username").value="";$("password").value="";toast("You have logged out of the preview.")}
 $("loginForm").addEventListener("submit",e=>{e.preventDefault();const name=$("username").value.trim();const pass=$("password").value;if(!name||!pass)return;if(name.toLowerCase()!=="demo"){toast("Preview only: use username demo. Real employee sign-in is not available yet.");return}login("Demo Member")});
-$("signupForm").addEventListener("submit",e=>{e.preventDefault();toast("Preview only: your request was not saved or sent. Employee access requests need a secure backend.");setAuthMode(false)});
+$("signupForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const submitButton=e.target.querySelector('button[type="submit"]');
+  const fullName=$("newName").value.trim();
+  const username=$("newUsername").value.trim().toLowerCase();
+  const email=$("newEmail").value.trim().toLowerCase();
+  if(!fullName||!username||!email){toast("Complete all required fields.");return}
+  submitButton.disabled=true;
+  const originalText=submitButton.innerHTML;
+  submitButton.textContent="Submitting request…";
+  try{
+    const response=await fetch("/api/access-requests",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({fullName,username,email})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){
+      toast(data.error||data.message||"Your request could not be submitted. Please try again later.");
+      return;
+    }
+    toast(data.message||"Your access request was submitted for review.");
+    e.target.reset();
+    setAuthMode(false);
+  }catch(error){
+    toast("Access request service is unavailable. Your request was not submitted.");
+  }finally{
+    submitButton.disabled=false;
+    submitButton.innerHTML=originalText;
+  }
+});
 $("togglePassword").addEventListener("click",()=>{const p=$("password");p.type=p.type==="password"?"text":"password";$("togglePassword").textContent=p.type==="password"?"Show":"Hide"});
 $("forgotLink").addEventListener("click",e=>{e.preventDefault();showModal("Password reset","Secure password recovery is not connected yet.",'<p class="modal-copy">In production, this flow should send a time-limited reset link to the employee’s verified work email. No password will be changed in this preview.</p>')});
 function statusClass(s){return s.replace(/\s+/g,"-")}
