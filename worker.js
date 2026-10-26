@@ -102,6 +102,54 @@ async function adminLogin(request, env) {
     status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie(token) }
   });
 }
+const DESIGNATIONS = ["CEO","COO","OP","OVP","OM","Assistant OM","Supervisor","Team Leader","Trainer","SME"];
+const MODERATOR_USERNAME = "lv_admin123";
+function isGovernanceModerator(session) { return session?.username?.trim().toLowerCase() === MODERATOR_USERNAME; }
+async function designationRoutes(request, env, url, session) {
+ const moderator=isGovernanceModerator(session);
+ if(request.method==="GET"&&url.pathname==="/api/admin/designations"){
+  const current=await env.DB.prepare("SELECT designation FROM management_designations WHERE username = ?").bind(session.username).first();
+  const pending=moderator?await env.DB.prepare("SELECT id, username, requested_designation AS requestedDesignation, requested_at AS requestedAt FROM designation_requests WHERE status='pending' ORDER BY requested_at ASC LIMIT 200").all():{results:[]};
+  const assignments=moderator?await env.DB.prepare("SELECT username,designation,assigned_by AS assignedBy,assigned_at AS assignedAt FROM management_designations ORDER BY username COLLATE NOCASE LIMIT 500").all():{results:[]};
+  return json({username:session.username,designation:current?.designation||null,isModerator:moderator,pendingRequests:pending.results||[],assignments:assignments.results||[]});
+ }
+ if(request.method==="POST"&&url.pathname==="/api/admin/designation-requests"){
+  if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+  let b;try{b=await request.json()}catch{return json({error:"Invalid request body."},400)}
+  const d=clean(b.designation,40);if(!DESIGNATIONS.includes(d))return json({error:"Choose a valid designation."},400);
+  if(await env.DB.prepare("SELECT id FROM designation_requests WHERE username=? AND status='pending'").bind(session.username).first())return json({error:"You already have a pending designation request."},409);
+  const id=crypto.randomUUID(),now=new Date().toISOString();
+  await env.DB.prepare("INSERT INTO designation_requests(id,username,requested_designation,status,requested_at) VALUES(?,?,?,'pending',?)").bind(id,session.username,d,now).run();
+  await env.DB.prepare("INSERT INTO audit_events(id,actor,action,target_id,created_at,details) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),session.username,"designation_requested",id,now,d).run();
+  return json({ok:true,message:"Designation request submitted for moderator review."},201);
+ }
+ if(request.method==="POST"&&url.pathname==="/api/admin/designations/assign"){
+  if(!moderator)return json({error:"Only LV_Admin123, the IT & Admin Moderator, can assign designations."},403);
+  if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+  let b;try{b=await request.json()}catch{return json({error:"Invalid request body."},400)}
+  const username=clean(b.username,120),d=clean(b.designation,40);if(!username||!DESIGNATIONS.includes(d))return json({error:"Enter a username and valid designation."},400);
+  const now=new Date().toISOString();
+  await env.DB.prepare("INSERT INTO management_designations(username,designation,assigned_by,assigned_at) VALUES(?,?,?,?) ON CONFLICT(username) DO UPDATE SET designation=excluded.designation,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at").bind(username,d,session.username,now).run();
+  await env.DB.prepare("INSERT INTO audit_events(id,actor,action,target_id,created_at,details) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),session.username,"designation_assigned",username,now,d).run();
+  return json({ok:true,message:"Designation assigned to "+username+"."});
+ }
+ const m=url.pathname.match(/^\/api\/admin\/designation-requests\/([0-9a-f-]{36})$/i);
+ if(request.method==="POST"&&m){
+  if(!moderator)return json({error:"Only LV_Admin123, the IT & Admin Moderator, can review designation requests."},403);
+  if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+  let b;try{b=await request.json()}catch{return json({error:"Invalid request body."},400)}
+  if(!["approve","reject"].includes(b.action))return json({error:"Action must be approve or reject."},400);
+  const item=await env.DB.prepare("SELECT username,requested_designation AS designation FROM designation_requests WHERE id=? AND status='pending'").bind(m[1]).first();
+  if(!item)return json({error:"Request not found or already reviewed."},404);
+  const now=new Date().toISOString(),status=b.action==="approve"?"approved":"rejected";
+  await env.DB.prepare("UPDATE designation_requests SET status=?,reviewed_at=?,reviewed_by=? WHERE id=? AND status='pending'").bind(status,now,session.username,m[1]).run();
+  if(status==="approved")await env.DB.prepare("INSERT INTO management_designations(username,designation,assigned_by,assigned_at) VALUES(?,?,?,?) ON CONFLICT(username) DO UPDATE SET designation=excluded.designation,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at").bind(item.username,item.designation,session.username,now).run();
+  await env.DB.prepare("INSERT INTO audit_events(id,actor,action,target_id,created_at,details) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),session.username,"designation_request_"+status,m[1],now,item.username+":"+item.designation).run();
+  return json({ok:true,message:status==="approved"?"Designation approved and assigned.":"Designation request rejected."});
+ }
+ return json({error:"Not found."},404);
+}
+
 async function adminRoutes(request, env, url) {
   if (url.pathname === "/api/admin/login") return adminLogin(request, env);
   if (url.pathname === "/api/admin/logout" && request.method === "POST") {
@@ -112,6 +160,7 @@ async function adminRoutes(request, env, url) {
   if (request.method === "GET" && url.pathname === "/api/admin/session") return session ? json({ authenticated: true, user: { username: session.username, role: session.role } }) : json({ authenticated: false }, 401);
   if (!session) return json({ error: "Administrator sign-in required." }, 401);
   if (!env.DB) return json({ error: "Database is not configured." }, 503);
+  if (url.pathname.startsWith("/api/admin/designation")) return designationRoutes(request, env, url, session);
   if (request.method === "GET" && url.pathname === "/api/admin/access-requests") {
     const status = url.searchParams.get("status") || "pending";
     if (!["pending", "approved", "rejected", "all"].includes(status)) return json({ error: "Invalid status filter." }, 400);
