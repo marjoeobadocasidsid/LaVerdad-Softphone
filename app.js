@@ -34,14 +34,46 @@ let activity = [
  {name:"Jordan Lee",phone:"+1 (555) 010-2134",type:"Outbound",time:"08:33 AM",duration:"03:08",disposition:"No answer",initials:"JL"},
  {name:"Casey Rivera",phone:"+1 (555) 010-2190",type:"Inbound",time:"08:11 AM",duration:"05:52",disposition:"Resolved",initials:"CR"}
 ];
-let currentUser = "Demo Member", currentRole = "Contact Center Agent", agentStatus = "Available", callMode = "Outbound", callActive = false, muted = false, callSeconds = 0, callInterval = null, callStartedAt = null, callLog = [...activity];
+let currentUser = "Demo Member", currentRole = "Contact Center Agent", loginMode = "employee", agentStatus = "Available", callMode = "Outbound", callActive = false, muted = false, callSeconds = 0, callInterval = null, callStartedAt = null, callLog = [...activity];
 const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const initials = name => name.split(/\s+/).map(x=>x[0]).slice(0,2).join("").toUpperCase();
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove("show"),2800)}
 function setAuthMode(signup){$("loginForm").classList.toggle("hidden",signup);$("signupForm").classList.toggle("hidden",!signup);$("authTitle").textContent=signup?"Request employee access":"Sign in to your workspace";$("authSubtitle").textContent=signup?"Ask your administrator to provision your secure account.":"Use your assigned employee credentials to continue.";$("authSwitch").innerHTML=signup?'Already have access? <button type="button" id="showLogin">Back to sign in</button>':'New to the team? <button type="button" id="showSignup">Request an account</button>';const b=$(signup?"showLogin":"showSignup");b.addEventListener("click",()=>setAuthMode(!signup))}
 function login(name){currentUser=name||"Demo Member";currentRole="Contact Center Agent";$("authScreen").classList.add("hidden");$("appScreen").classList.remove("hidden");$("profileName").textContent=currentUser;$("profileRole").textContent=currentRole;$("avatarInitials").textContent=initials(currentUser);$("greetingName").textContent=currentUser.split(" ")[0];$("todayDate").textContent=new Intl.DateTimeFormat("en",{weekday:"short",month:"short",day:"numeric"}).format(new Date());renderAll();toast("Welcome to your workspace, "+currentUser.split(" ")[0]+"!")}
 function logout(){endCall(true);$("appScreen").classList.add("hidden");$("authScreen").classList.remove("hidden");$("profileMenu").classList.add("hidden");$("username").value="";$("password").value="";toast("You have logged out of the preview.")}
-$("loginForm").addEventListener("submit",e=>{e.preventDefault();const name=$("username").value.trim();const pass=$("password").value;if(!name||!pass)return;if(name.toLowerCase()!=="demo"){toast("Preview only: use username demo. Real employee sign-in is not available yet.");return}login("Demo Member")});
+$("loginForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  const name=$("username").value.trim();
+  const pass=$("password").value;
+  if(!name||!pass)return;
+  if(loginMode==="admin"){
+    toast("Admin sign-in is not enabled yet. Secure administrator authentication must be configured before management tools can open.");
+    return;
+  }
+  if(name.toLowerCase()!=="demo"){
+    toast("Preview only: use username demo. Real employee sign-in is not available yet.");
+    return;
+  }
+  login("Demo Member");
+});
+function setLoginMode(mode){
+  loginMode=mode==="admin"?"admin":"employee";
+  document.querySelectorAll("[data-login-mode]").forEach(button=>{
+    const selected=button.dataset.loginMode===loginMode;
+    button.classList.toggle("selected",selected);
+    button.setAttribute("aria-pressed",String(selected));
+  });
+  $("accessModeHint").textContent=loginMode==="admin"
+    ?"Admin area selected. Administrator sign-in is unavailable until secure role-based authentication is configured."
+    :"Employee sign-in opens the employee workspace.";
+  $("authSubtitle").textContent=loginMode==="admin"
+    ?"Choose Admin / Management to access administrator tools when secure admin sign-in is enabled."
+    :"Use your assigned employee credentials to continue.";
+  $("loginForm").querySelector('button[type="submit"]').innerHTML=loginMode==="admin"
+    ?'Admin sign-in unavailable <span>→</span>'
+    :'Sign in to Employee Area <span>→</span>';
+}
+document.querySelectorAll("[data-login-mode]").forEach(button=>button.addEventListener("click",()=>setLoginMode(button.dataset.loginMode)));
 $("signupForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const submitButton=e.target.querySelector('button[type="submit"]');
@@ -66,6 +98,7 @@ $("signupForm").addEventListener("submit",async e=>{
     toast(data.message||"Your access request was submitted for review.");
     e.target.reset();
     setAuthMode(false);
+setLoginMode("employee");
   }catch(error){
     toast("Access request service is unavailable. Your request was not submitted.");
   }finally{
