@@ -150,6 +150,116 @@ async function designationRoutes(request, env, url, session) {
  return json({error:"Not found."},404);
 }
 
+
+const EMPLOYEE_COOKIE = "__Host-laverdad_employee";
+const PASSWORD_ITERATIONS = 120000;
+function randomHex(bytes = 16) {
+  const data = crypto.getRandomValues(new Uint8Array(bytes));
+  return [...data].map(v => v.toString(16).padStart(2, "0")).join("");
+}
+async function derivePassword(password, salt, iterations = PASSWORD_ITERATIONS) {
+  const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: encoder.encode(salt), iterations }, material, 256);
+  return [...new Uint8Array(bits)].map(v => v.toString(16).padStart(2, "0")).join("");
+}
+async function employeeSessionToken(env, employee) {
+  const payload = toBase64Url(encoder.encode(JSON.stringify({ sub: employee.username, employeeId: employee.id, role: "employee", exp: Math.floor(Date.now()/1000) + SESSION_SECONDS })));
+  return payload + "." + toBase64Url(await hmac(env.ADMIN_SESSION_SECRET, payload));
+}
+async function readEmployeeSession(request, env) {
+  if (!env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) return null;
+  const parts = cookieValue(request, EMPLOYEE_COOKIE).split(".");
+  if (parts.length !== 2) return null;
+  try {
+    if (!constantTimeEqual(await hmac(env.ADMIN_SESSION_SECRET, parts[0]), fromBase64Url(parts[1]))) return null;
+    const payload = JSON.parse(new TextDecoder().decode(fromBase64Url(parts[0])));
+    if (payload.role !== "employee" || typeof payload.sub !== "string" || typeof payload.employeeId !== "string" || payload.exp <= Math.floor(Date.now()/1000)) return null;
+    const employee = await env.DB.prepare("SELECT id,full_name AS fullName,username,email,team,extension,status,active FROM employees WHERE id=? AND username=?").bind(payload.employeeId,payload.sub).first();
+    return employee && employee.active ? employee : null;
+  } catch { return null; }
+}
+async function employeeRoutes(request, env, url) {
+  if (!env.DB) return json({error:"Database is not configured."},503);
+  if (url.pathname === "/api/employee/login" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({error:"Cross-origin request rejected."},403);
+    if (!env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) return json({error:"Authentication service is not configured."},503);
+    let body; try { body = await request.json(); } catch { return json({error:"Invalid request body."},400); }
+    const username=clean(body.username,120).toLowerCase(), password=String(body.password||"");
+    if(!username||!password||password.length>1024) return json({error:"Enter your employee username and password."},400);
+    if(await loginRateLimited(request,env,"employee:"+username)) return json({error:"Too many sign-in attempts. Try again in 15 minutes."},429);
+    const employee=await env.DB.prepare("SELECT id,full_name AS fullName,username,email,team,extension,status,active,password_hash AS passwordHash,password_salt AS passwordSalt,password_iterations AS passwordIterations FROM employees WHERE username=?").bind(username).first();
+    if(!employee||!employee.active) return json({error:"Invalid employee username or password."},401);
+    const candidate=await derivePassword(password,employee.passwordSalt,employee.passwordIterations);
+    if(candidate!==employee.passwordHash) return json({error:"Invalid employee username or password."},401);
+    const now=new Date().toISOString();
+    await env.DB.prepare("UPDATE employees SET last_login_at=?,updated_at=?,status=CASE WHEN status='Logged Out' THEN 'Available' ELSE status END WHERE id=?").bind(now,now,employee.id).run();
+    const token=await employeeSessionToken(env,employee);
+    return new Response(JSON.stringify({ok:true,user:{id:employee.id,fullName:employee.fullName,username:employee.username,email:employee.email,team:employee.team,extension:employee.extension}}),{status:200,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","set-cookie":EMPLOYEE_COOKIE+"="+token+"; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age="+SESSION_SECONDS}});
+  }
+  if (url.pathname === "/api/employee/logout" && request.method === "POST") {
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    const session=await readEmployeeSession(request,env);
+    if(session) await env.DB.prepare("UPDATE employees SET status='Logged Out',updated_at=? WHERE id=?").bind(new Date().toISOString(),session.id).run();
+    return new Response(JSON.stringify({ok:true}),{status:200,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","set-cookie":EMPLOYEE_COOKIE+"=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"}});
+  }
+  const session=await readEmployeeSession(request,env);
+  if(url.pathname==="/api/employee/session"&&request.method==="GET")return session?json({authenticated:true,user:session}):json({authenticated:false},401);
+  if(!session)return json({error:"Employee sign-in required."},401);
+  if(url.pathname==="/api/employee/status"&&request.method==="POST"){
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    let body;try{body=await request.json()}catch{return json({error:"Invalid request body."},400)}
+    const allowed=["Available","Unavailable","On Wrap"];
+    if(!allowed.includes(body.status))return json({error:"Choose a supported agent status."},400);
+    await env.DB.prepare("UPDATE employees SET status=?,updated_at=? WHERE id=?").bind(body.status,new Date().toISOString(),session.id).run();
+    return json({ok:true,status:body.status});
+  }
+  if(url.pathname==="/api/employee/calls"&&request.method==="GET"){
+    const result=await env.DB.prepare("SELECT id,call_type AS type,phone_number AS phone,started_at AS startedAt,ended_at AS endedAt,duration_seconds AS durationSeconds,disposition,notes FROM call_activity WHERE employee_id=? ORDER BY started_at DESC LIMIT 100").bind(session.id).all();
+    return json({calls:result.results||[]});
+  }
+  if(url.pathname==="/api/employee/calls"&&request.method==="POST"){
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    let body;try{body=await request.json()}catch{return json({error:"Invalid request body."},400)}
+    const type=clean(body.type,20),phone=clean(body.phone,40),disposition=clean(body.disposition||"In progress",80),notes=clean(body.notes||"",2000);
+    if(!["Inbound","Outbound"].includes(type)||!phone)return json({error:"Call type and phone number are required."},400);
+    const id=crypto.randomUUID(),now=new Date().toISOString();
+    await env.DB.prepare("INSERT INTO call_activity(id,employee_id,call_type,phone_number,started_at,disposition,notes,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(id,session.id,type,phone,now,disposition,notes||null,now).run();
+    await env.DB.prepare("UPDATE employees SET status='On Phone',updated_at=? WHERE id=?").bind(now,session.id).run();
+    return json({ok:true,id,startedAt:now},201);
+  }
+  return json({error:"Not found."},404);
+}
+async function adminEmployeeRoutes(request, env, url, session) {
+  if(url.pathname==="/api/admin/employees"&&request.method==="GET"){
+    const result=await env.DB.prepare("SELECT e.id,e.full_name AS fullName,e.username,e.email,e.team,e.extension,e.status,e.active,e.created_at AS createdAt,e.last_login_at AS lastLoginAt,COALESCE(GROUP_CONCAT(s.skill, ', '),'') AS skills FROM employees e LEFT JOIN employee_skills s ON s.employee_id=e.id GROUP BY e.id ORDER BY e.full_name COLLATE NOCASE LIMIT 500").all();
+    return json({employees:result.results||[]});
+  }
+  if(url.pathname==="/api/admin/employees"&&request.method==="POST"){
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    let b;try{b=await request.json()}catch{return json({error:"Invalid request body."},400)}
+    const fullName=clean(b.fullName,160),username=clean(b.username,120).toLowerCase(),email=clean(b.email,254).toLowerCase(),team=clean(b.team||"Unassigned",100),extension=clean(b.extension||"",20),password=String(b.password||"");
+    if(!fullName||!username||!/^[a-z0-9._-]{3,40}$/.test(username)||!emailPattern.test(email)||password.length<12||password.length>1024)return json({error:"Enter a name, valid username and work email, and a password of at least 12 characters."},400);
+    const salt=randomHex(),hash=await derivePassword(password,salt),id=crypto.randomUUID(),now=new Date().toISOString();
+    try{
+      await env.DB.prepare("INSERT INTO employees(id,full_name,username,email,password_hash,password_salt,password_iterations,team,extension,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id,fullName,username,email,hash,salt,PASSWORD_ITERATIONS,team,extension||null,now,now).run();
+    }catch(e){return json({error:"Employee could not be created. Check for a duplicate username, email, or extension."},409)}
+    await env.DB.prepare("INSERT INTO audit_events(id,actor,action,target_id,created_at,details) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),session.username,"employee_created",id,now,username).run();
+    return json({ok:true,employee:{id,fullName,username,email,team,extension:extension||null,status:"Available",active:1},message:"Employee account created."},201);
+  }
+  const match=url.pathname.match(/^\/api\/admin\/employees\/([0-9a-f-]{36})$/i);
+  if(match&&request.method==="PATCH"){
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    let b;try{b=await request.json()}catch{return json({error:"Invalid request body."},400)}
+    if(typeof b.active!=="boolean")return json({error:"Specify active as true or false."},400);
+    const now=new Date().toISOString();
+    const result=await env.DB.prepare("UPDATE employees SET active=?,status=CASE WHEN ?=0 THEN 'Logged Out' ELSE status END,updated_at=? WHERE id=?").bind(b.active?1:0,b.active?1:0,now,match[1]).run();
+    if(!result.meta?.changes)return json({error:"Employee not found."},404);
+    await env.DB.prepare("INSERT INTO audit_events(id,actor,action,target_id,created_at,details) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(),session.username,b.active?"employee_activated":"employee_deactivated",match[1],now,null).run();
+    return json({ok:true,message:b.active?"Employee activated.":"Employee deactivated."});
+  }
+  return json({error:"Not found."},404);
+}
+
 async function adminRoutes(request, env, url) {
   if (url.pathname === "/api/admin/login") return adminLogin(request, env);
   if (url.pathname === "/api/admin/logout" && request.method === "POST") {
@@ -161,6 +271,7 @@ async function adminRoutes(request, env, url) {
   if (!session) return json({ error: "Administrator sign-in required." }, 401);
   if (!env.DB) return json({ error: "Database is not configured." }, 503);
   if (url.pathname.startsWith("/api/admin/designation")) return designationRoutes(request, env, url, session);
+  if (url.pathname.startsWith("/api/admin/employees")) return adminEmployeeRoutes(request, env, url, session);
   if (request.method === "GET" && url.pathname === "/api/admin/access-requests") {
     const status = url.searchParams.get("status") || "pending";
     if (!["pending", "approved", "rejected", "all"].includes(status)) return json({ error: "Invalid status filter." }, 400);
@@ -196,6 +307,7 @@ export default {
     if (url.pathname === "/api/health" && request.method === "GET") {
       return json({ ok: true, service: "laverdad-softphone-api", databaseConfigured: Boolean(env.DB) });
     }
+    if (url.pathname.startsWith("/api/employee/")) return employeeRoutes(request, env, url);
     if (url.pathname === "/api/access-requests" && request.method === "POST") {
       return submitAccessRequest(request, env);
     }

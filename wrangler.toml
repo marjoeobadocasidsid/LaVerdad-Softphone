@@ -13,3 +13,7 @@ binding = "DB"
 database_name = "laverdad-softphone-db"
 database_id = "79a22d14-e12f-4027-a993-66c33aebc7eb"
 migrations_dir = "migrations"
+
+[[previews.d1_databases]]
+binding = "DB"
+database_id = "562174ed-9a4a-4c2d-be1e-2ebef6e3b339"
