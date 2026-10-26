@@ -41,13 +41,32 @@ function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show")
 function setAuthMode(signup){$("loginForm").classList.toggle("hidden",signup);$("signupForm").classList.toggle("hidden",!signup);$("authTitle").textContent=signup?"Request employee access":"Sign in to your workspace";$("authSubtitle").textContent=signup?"Ask your administrator to provision your secure account.":"Use your assigned employee credentials to continue.";$("authSwitch").innerHTML=signup?'Already have access? <button type="button" id="showLogin">Back to sign in</button>':'New to the team? <button type="button" id="showSignup">Request an account</button>';const b=$(signup?"showLogin":"showSignup");b.addEventListener("click",()=>setAuthMode(!signup))}
 function login(name){currentUser=name||"Demo Member";currentRole="Contact Center Agent";$("authScreen").classList.add("hidden");$("appScreen").classList.remove("hidden");$("profileName").textContent=currentUser;$("profileRole").textContent=currentRole;$("avatarInitials").textContent=initials(currentUser);$("greetingName").textContent=currentUser.split(" ")[0];$("todayDate").textContent=new Intl.DateTimeFormat("en",{weekday:"short",month:"short",day:"numeric"}).format(new Date());renderAll();toast("Welcome to your workspace, "+currentUser.split(" ")[0]+"!")}
 function logout(){endCall(true);$("appScreen").classList.add("hidden");$("authScreen").classList.remove("hidden");$("profileMenu").classList.add("hidden");$("username").value="";$("password").value="";toast("You have logged out of the preview.")}
-$("loginForm").addEventListener("submit",e=>{
+$("loginForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const name=$("username").value.trim();
   const pass=$("password").value;
   if(!name||!pass)return;
   if(loginMode==="admin"){
-    toast("Admin sign-in is not enabled yet. Secure administrator authentication must be configured before management tools can open.");
+    const submitButton=$("loginForm").querySelector('button[type="submit"]');
+    const originalText=submitButton.innerHTML;
+    submitButton.disabled=true;
+    submitButton.textContent="Verifying administrator…";
+    try{
+      const response=await fetch("/api/admin/login",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({username:name,password:pass})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){toast(data.error||"Administrator sign-in failed.");return}
+      window.location.assign("/admin.html");
+    }catch(error){
+      toast("Administrator sign-in service is unavailable. Please try again.");
+    }finally{
+      submitButton.disabled=false;
+      submitButton.innerHTML=originalText;
+    }
     return;
   }
   if(name.toLowerCase()!=="demo"){
@@ -64,13 +83,13 @@ function setLoginMode(mode){
     button.setAttribute("aria-pressed",String(selected));
   });
   $("accessModeHint").textContent=loginMode==="admin"
-    ?"Admin area selected. Administrator sign-in is unavailable until secure role-based authentication is configured."
+    ?"Admin area selected. Sign in with your administrator credentials."
     :"Employee sign-in opens the employee workspace.";
   $("authSubtitle").textContent=loginMode==="admin"
-    ?"Choose Admin / Management to access administrator tools when secure admin sign-in is enabled."
+    ?"Use your assigned administrator username and password."
     :"Use your assigned employee credentials to continue.";
   $("loginForm").querySelector('button[type="submit"]').innerHTML=loginMode==="admin"
-    ?'Admin sign-in unavailable <span>→</span>'
+    ?'Sign in to Admin Area <span>→</span>'
     :'Sign in to Employee Area <span>→</span>';
 }
 document.querySelectorAll("[data-login-mode]").forEach(button=>button.addEventListener("click",()=>setLoginMode(button.dataset.loginMode)));
