@@ -30,12 +30,26 @@
       <div class="mobile-brand brand"><span class="brand-mark"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 21.5c0-7 5.2-12.5 12-12.5s12 5.5 12 12.5v2.2h-5.1v-2.2c0-4.1-2.9-7.2-6.9-7.2s-6.9 3.1-6.9 7.2v2.2H8z"/><path d="M8 22h7v11H8zM25 22h7v11h-7z"/><path d="M15 32h10v3H15z"/></svg></span>LaVerdad <span class="brand-lightweight">Softphone</span></div>
       <div class="auth-card">
         <div class="auth-heading"><span class="auth-icon">↗</span><span class="eyebrow">WELCOME BACK</span><h2 id="authTitle">Sign in to your workspace</h2><p id="authSubtitle">Use your assigned employee credentials to continue.</p></div>
+        <fieldset class="access-mode" aria-label="Choose sign-in area">
+          <legend>Where do you want to sign in?</legend>
+          <button type="button" class="access-mode-option selected" data-login-mode="employee" aria-pressed="true">
+            <span class="access-mode-icon" aria-hidden="true">♙</span>
+            <span class="access-mode-copy"><strong>Employee / Worker</strong><small>Softphone and daily workspace</small></span>
+            <span class="access-mode-check" aria-hidden="true">✓</span>
+          </button>
+          <button type="button" class="access-mode-option" data-login-mode="admin" aria-pressed="false">
+            <span class="access-mode-icon admin-mode-icon" aria-hidden="true">▦</span>
+            <span class="access-mode-copy"><strong>Admin / Management</strong><small>Access requests and management tools</small></span>
+            <span class="access-mode-check" aria-hidden="true">✓</span>
+          </button>
+          <p class="access-mode-hint" id="accessModeHint">Employee sign-in opens the employee workspace.</p>
+        </fieldset>
         <form id="loginForm" class="auth-form">
           <label for="username">Username</label><div class="field-wrap"><span>♙</span><input id="username" name="username" autocomplete="username" placeholder="Enter your username" required></div>
           <label for="password">Password</label><div class="field-wrap"><span>♧</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button type="button" class="reveal-btn" id="togglePassword" aria-label="Show password">Show</button></div>
           <div class="form-row"><label class="check-label"><input type="checkbox" id="rememberMe"> Remember me</label><a href="#" id="forgotLink">Forgot password?</a></div>
           <button class="primary-btn full-btn" type="submit">Sign in <span>→</span></button>
-          <div class="demo-note"><span class="note-icon">i</span><span><strong>Interactive preview</strong><br>Use <b>demo</b> as username and any password to explore the sample workspace. This prototype does not authenticate real employees.</span></div>
+          <div class="demo-note"><span class="note-icon">i</span><span><strong>Interactive preview</strong><br>Use <b>demo</b> as username and any password to explore the sample employee workspace. This prototype does not authenticate real employees.</span></div>
         </form>
         <form id="signupForm" class="auth-form hidden">
           <label for="newName">Employee full name</label><div class="field-wrap"><span>♙</span><input id="newName" required placeholder="Enter full name"></div>
