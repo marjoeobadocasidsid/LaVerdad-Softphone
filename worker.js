@@ -21,122 +21,87 @@ function sameOrigin(request) {
   }
 }
 
-async function requireAdmin(request, env) {
-  const expected = env.ADMIN_API_KEY;
-  const supplied = request.headers.get("x-admin-key") || "";
-  if (!expected || expected.length < 32 || supplied.length !== expected.length) return false;
-  return (await sha256(supplied)) === (await sha256(expected));
+const SESSION_COOKIE = "__Host-laverdad_admin";
+const SESSION_SECONDS = 8 * 60 * 60;
+const encoder = new TextEncoder();
+function toBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
-
-async function submitAccessRequest(request, env) {
-  if (!sameOrigin(request)) return json({ error: "Cross-origin request rejected." }, 403);
-  if (!env.DB) return json({ error: "Access requests are not configured yet." }, 503);
-
-  const contentType = request.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) return json({ error: "Send a JSON request." }, 415);
-
-  let body;
+function fromBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+async function hmac(secret, value) {
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
+}
+function constantTimeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+function cookieValue(request, name) {
+  const cookies = request.headers.get("Cookie") || "";
+  for (const item of cookies.split(";")) {
+    const index = item.indexOf("=");
+    if (index > -1 && item.slice(0, index).trim() === name) return item.slice(index + 1).trim();
+  }
+  return "";
+}
+function sessionCookie(value, maxAge = SESSION_SECONDS) {
+  return "__Host-laverdad_admin=" + value + "; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=" + maxAge;
+}
+async function createSession(env, username) {
+  const payload = toBase64Url(encoder.encode(JSON.stringify({ sub: username, role: "admin", exp: Math.floor(Date.now() / 1000) + SESSION_SECONDS })));
+  return payload + "." + toBase64Url(await hmac(env.ADMIN_SESSION_SECRET, payload));
+}
+async function readAdminSession(request, env) {
+  if (!env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) return null;
+  const parts = cookieValue(request, SESSION_COOKIE).split(".");
+  if (parts.length !== 2) return null;
   try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid request body." }, 400);
-  }
-
-  const fullName = clean(body.fullName, 120);
-  const username = clean(body.username, 40).toLowerCase();
-  const email = clean(body.email, 254).toLowerCase();
-
-  if (fullName.length < 2) return json({ error: "Enter your full name." }, 400);
-  if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
-    return json({ error: "Username must be 3–40 characters and use letters, numbers, dots, underscores, or hyphens." }, 400);
-  }
-  if (!emailPattern.test(email) || email.length > 254) return json({ error: "Enter a valid work email address." }, 400);
-
+    if (!constantTimeEqual(await hmac(env.ADMIN_SESSION_SECRET, parts[0]), fromBase64Url(parts[1]))) return null;
+    const payload = JSON.parse(new TextDecoder().decode(fromBase64Url(parts[0])));
+    if (payload.role !== "admin" || typeof payload.sub !== "string" || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return { username: payload.sub, role: "admin" };
+  } catch { return null; }
+}
+async function loginRateLimited(request, env, username) {
+  if (!env.DB) return true;
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const rateKey = await sha256(ip + (env.RATE_LIMIT_SALT || "laverdad-access-request"));
+  const keyHash = await sha256("admin-login:" + ip + ":" + username + ":" + (env.RATE_LIMIT_SALT || "laverdad-admin"));
   const now = Math.floor(Date.now() / 1000);
   const windowStart = now - (now % 900);
-
-  await env.DB.prepare(
-    "INSERT INTO request_rate_limits (key_hash, window_start, attempts) VALUES (?, ?, 1) ON CONFLICT(key_hash) DO UPDATE SET attempts = CASE WHEN window_start = excluded.window_start THEN attempts + 1 ELSE 1 END, window_start = excluded.window_start"
-  ).bind(rateKey, windowStart).run();
-
-  const rate = await env.DB.prepare(
-    "SELECT attempts FROM request_rate_limits WHERE key_hash = ?"
-  ).bind(rateKey).first();
-  if ((rate?.attempts || 0) > 5) return json({ error: "Too many requests. Please try again in 15 minutes." }, 429);
-
-  const pendingDuplicate = await env.DB.prepare(
-    "SELECT id FROM access_requests WHERE status = 'pending' AND (email = ? OR username = ?) LIMIT 1"
-  ).bind(email, username).first();
-  if (pendingDuplicate) {
-    return json({ message: "A pending request already exists for that email or username." }, 409);
-  }
-
-  const id = crypto.randomUUID();
-  try {
-    await env.DB.prepare(
-      "INSERT INTO access_requests (id, full_name, username, email, status, requested_at) VALUES (?, ?, ?, ?, 'pending', ?)"
-    ).bind(id, fullName, username, email, new Date().toISOString()).run();
-  } catch (error) {
-    const message = String(error?.message || "");
-    if (/unique|constraint/i.test(message)) {
-      return json({ error: "A request with these details already exists. Contact your administrator if you need help." }, 409);
-    }
-    return json({ error: "Unable to save your request right now." }, 500);
-  }
-
-  return json({ ok: true, requestId: id, status: "pending", message: "Your access request was submitted for administrator review." }, 201);
+  await env.DB.prepare("INSERT INTO request_rate_limits (key_hash, window_start, attempts) VALUES (?, ?, 1) ON CONFLICT(key_hash) DO UPDATE SET attempts = CASE WHEN window_start = excluded.window_start THEN attempts + 1 ELSE 1 END, window_start = excluded.window_start").bind(keyHash, windowStart).run();
+  const row = await env.DB.prepare("SELECT attempts FROM request_rate_limits WHERE key_hash = ?").bind(keyHash).first();
+  return (row?.attempts || 0) > 8;
 }
-
-async function adminRoutes(request, env, url) {
-  if (!await requireAdmin(request, env)) return json({ error: "Unauthorized. Admin API key required." }, 401);
-  if (!env.DB) return json({ error: "Database is not configured." }, 503);
-
-  if (request.method === "GET" && url.pathname === "/api/admin/access-requests") {
-    const status = url.searchParams.get("status") || "pending";
-    if (!["pending", "approved", "rejected", "all"].includes(status)) {
-      return json({ error: "Invalid status filter." }, 400);
-    }
-    const query = status === "all"
-      ? env.DB.prepare("SELECT id, full_name AS fullName, username, email, status, requested_at AS requestedAt, reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, review_note AS reviewNote FROM access_requests ORDER BY requested_at DESC LIMIT 200")
-      : env.DB.prepare("SELECT id, full_name AS fullName, username, email, status, requested_at AS requestedAt, reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, review_note AS reviewNote FROM access_requests WHERE status = ? ORDER BY requested_at DESC LIMIT 200").bind(status);
-    const result = await query.all();
-    return json({ requests: result.results || [] });
+async function adminLogin(request, env) {
+  if (!sameOrigin(request)) return json({ error: "Cross-origin request rejected." }, 403);
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD || !env.ADMIN_SESSION_SECRET || env.ADMIN_SESSION_SECRET.length < 32) {
+    return json({ error: "Administrator authentication is not configured. Ask the deployment owner to configure the required Cloudflare secrets." }, 503);
   }
-
-  const match = url.pathname.match(/^\/api\/admin\/access-requests\/([0-9a-f-]{36})$/i);
-  if (request.method === "POST" && match) {
-    let body;
-    try { body = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-    const action = body.action;
-    const reviewer = clean(body.reviewer, 120) || "Admin";
-    const note = clean(body.note, 500);
-    if (!["approve", "reject"].includes(action)) return json({ error: "Action must be approve or reject." }, 400);
-
-    const nextStatus = action === "approve" ? "approved" : "rejected";
-    const result = await env.DB.prepare(
-      "UPDATE access_requests SET status = ?, reviewed_at = ?, reviewed_by = ?, review_note = ? WHERE id = ? AND status = 'pending'"
-    ).bind(nextStatus, new Date().toISOString(), reviewer, note || null, match[1]).run();
-
-    if (!result.meta?.changes) return json({ error: "Request not found or it has already been reviewed." }, 404);
-
-    await env.DB.prepare(
-      "INSERT INTO audit_events (id, actor, action, target_id, created_at, details) VALUES (?, ?, ?, ?, ?, ?)"
-    ).bind(crypto.randomUUID(), reviewer, "access_request_" + nextStatus, match[1], new Date().toISOString(), note || null).run();
-
-    return json({
-      ok: true,
-      status: nextStatus,
-      message: nextStatus === "approved"
-        ? "Request marked approved. This does not create an employee login yet."
-        : "Request rejected."
-    });
-  }
-
-  return json({ error: "Not found." }, 404);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+  const username = clean(body.username, 120);
+  const password = String(body.password || "");
+  if (!username || !password || password.length > 1024) return json({ error: "Enter your administrator username and password." }, 400);
+  if (await loginRateLimited(request, env, username.toLowerCase())) return json({ error: "Too many sign-in attempts. Try again in 15 minutes." }, 429);
+  const expectedUser = await hmac(env.ADMIN_SESSION_SECRET, "username:" + env.ADMIN_USERNAME.trim().toLowerCase());
+  const suppliedUser = await hmac(env.ADMIN_SESSION_SECRET, "username:" + username.toLowerCase());
+  const expectedPass = await hmac(env.ADMIN_SESSION_SECRET, "password:" + env.ADMIN_PASSWORD);
+  const suppliedPass = await hmac(env.ADMIN_SESSION_SECRET, "password:" + password);
+  if (!constantTimeEqual(expectedUser, suppliedUser) || !constantTimeEqual(expectedPass, suppliedPass)) return json({ error: "Invalid administrator username or password." }, 401);
+  const token = await createSession(env, env.ADMIN_USERNAME.trim());
+  return new Response(JSON.stringify({ ok: true, user: { username: env.ADMIN_USERNAME.trim(), role: "admin" } }), {
+    status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie(token) }
+  });
 }
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
