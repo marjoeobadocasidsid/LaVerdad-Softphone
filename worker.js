@@ -227,6 +227,18 @@ async function employeeRoutes(request, env, url) {
     await env.DB.prepare("UPDATE employees SET status='On Phone',updated_at=? WHERE id=?").bind(now,session.id).run();
     return json({ok:true,id,startedAt:now},201);
   }
+  const endMatch=url.pathname.match(/^\/api\/employee\/calls\/([0-9a-f-]{36})\/end$/i);
+  if(endMatch&&request.method==="POST"){
+    if(!sameOrigin(request))return json({error:"Cross-origin request rejected."},403);
+    let body;try{body=await request.json()}catch{return json({error:"Invalid request body."},400)}
+    const duration=Math.max(0,Math.min(86400,Math.floor(Number(body.durationSeconds)||0)));
+    const disposition=clean(body.disposition||"Completed",80);
+    const now=new Date().toISOString();
+    const result=await env.DB.prepare("UPDATE call_activity SET ended_at=?,duration_seconds=?,disposition=? WHERE id=? AND employee_id=? AND ended_at IS NULL").bind(now,duration,disposition,endMatch[1],session.id).run();
+    if(!result.meta?.changes)return json({error:"Active call record not found."},404);
+    await env.DB.prepare("UPDATE employees SET status='Available',updated_at=? WHERE id=? AND status='On Phone'").bind(now,session.id).run();
+    return json({ok:true,endedAt:now,durationSeconds:duration});
+  }
   return json({error:"Not found."},404);
 }
 async function adminEmployeeRoutes(request, env, url, session) {
