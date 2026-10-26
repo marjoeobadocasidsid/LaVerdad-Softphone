@@ -41,7 +41,7 @@ function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show")
 function setAuthMode(signup){$("loginForm").classList.toggle("hidden",signup);$("signupForm").classList.toggle("hidden",!signup);$("authTitle").textContent=signup?"Request employee access":"Sign in to your workspace";$("authSubtitle").textContent=signup?"Ask your administrator to provision your secure account.":"Use your assigned employee credentials to continue.";$("authSwitch").innerHTML=signup?'Already have access? <button type="button" id="showLogin">Back to sign in</button>':'New to the team? <button type="button" id="showSignup">Request an account</button>';const b=$(signup?"showLogin":"showSignup");b.addEventListener("click",()=>setAuthMode(!signup))}
 function login(name){currentUser=name||"Demo Member";currentRole="Contact Center Agent";$("authScreen").classList.add("hidden");$("appScreen").classList.remove("hidden");$("profileName").textContent=currentUser;$("profileRole").textContent=currentRole;$("avatarInitials").textContent=initials(currentUser);$("greetingName").textContent=currentUser.split(" ")[0];$("todayDate").textContent=new Intl.DateTimeFormat("en",{weekday:"short",month:"short",day:"numeric"}).format(new Date());renderAll();toast("Welcome to your workspace, "+currentUser.split(" ")[0]+"!")}
 function logout(){endCall(true);$("appScreen").classList.add("hidden");$("authScreen").classList.remove("hidden");$("profileMenu").classList.add("hidden");$("username").value="";$("password").value="";toast("You have logged out of the preview.")}
-$("loginForm").addEventListener("submit",e=>{
+$("loginForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const name=$("username").value.trim();
   const pass=$("password").value;
