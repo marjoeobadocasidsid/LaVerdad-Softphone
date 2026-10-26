@@ -102,6 +102,42 @@ async function adminLogin(request, env) {
     status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie(token) }
   });
 }
+async function adminRoutes(request, env, url) {
+  if (url.pathname === "/api/admin/login") return adminLogin(request, env);
+  if (url.pathname === "/api/admin/logout" && request.method === "POST") {
+    if (!sameOrigin(request)) return json({ error: "Cross-origin request rejected." }, 403);
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie("", 0) } });
+  }
+  const session = await readAdminSession(request, env);
+  if (request.method === "GET" && url.pathname === "/api/admin/session") return session ? json({ authenticated: true, user: { username: session.username, role: session.role } }) : json({ authenticated: false }, 401);
+  if (!session) return json({ error: "Administrator sign-in required." }, 401);
+  if (!env.DB) return json({ error: "Database is not configured." }, 503);
+  if (request.method === "GET" && url.pathname === "/api/admin/access-requests") {
+    const status = url.searchParams.get("status") || "pending";
+    if (!["pending", "approved", "rejected", "all"].includes(status)) return json({ error: "Invalid status filter." }, 400);
+    const query = status === "all"
+      ? env.DB.prepare("SELECT id, full_name AS fullName, username, email, status, requested_at AS requestedAt, reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, review_note AS reviewNote FROM access_requests ORDER BY requested_at DESC LIMIT 200")
+      : env.DB.prepare("SELECT id, full_name AS fullName, username, email, status, requested_at AS requestedAt, reviewed_at AS reviewedAt, reviewed_by AS reviewedBy, review_note AS reviewNote FROM access_requests WHERE status = ? ORDER BY requested_at DESC LIMIT 200").bind(status);
+    const result = await query.all();
+    return json({ requests: result.results || [] });
+  }
+  const match = url.pathname.match(/^\/api\/admin\/access-requests\/([0-9a-f-]{36})$/i);
+  if (request.method === "POST" && match) {
+    if (!sameOrigin(request)) return json({ error: "Cross-origin request rejected." }, 403);
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+    const action = body.action;
+    const note = clean(body.note, 500);
+    if (!["approve", "reject"].includes(action)) return json({ error: "Action must be approve or reject." }, 400);
+    const nextStatus = action === "approve" ? "approved" : "rejected";
+    const result = await env.DB.prepare("UPDATE access_requests SET status = ?, reviewed_at = ?, reviewed_by = ?, review_note = ? WHERE id = ? AND status = 'pending'").bind(nextStatus, new Date().toISOString(), session.username, note || null, match[1]).run();
+    if (!result.meta?.changes) return json({ error: "Request not found or it has already been reviewed." }, 404);
+    await env.DB.prepare("INSERT INTO audit_events (id, actor, action, target_id, created_at, details) VALUES (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), session.username, "access_request_" + nextStatus, match[1], new Date().toISOString(), note || null).run();
+    return json({ ok: true, status: nextStatus, message: nextStatus === "approved" ? "Request marked approved. This does not create an employee login yet." : "Request rejected." });
+  }
+  return json({ error: "Not found." }, 404);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
